@@ -16,9 +16,9 @@ Das 3D-Modell des Beatmungsgerätes basiert auf Iteration #6 des Open Source Ven
 
 Wir arbeiten an verschiedensten Themen. Zum einen etwa an der Weiterentwicklung des Beatmungsgerätes, als auch an dessen Ansteuerung bzw. Regelung und weiterer Sensorik.
 
-* /hardware/mass-airflow-model/: Modelle für die Röhre eines Masseflusssensors
-* /hardware/ventilator-model/: das weiterentwickelte Modell des Beatmungsgerätes
-* /software/ventilator-control/: die Software für die Steuerungs-Plattform des Beatmungsgerätes
+* [/ hardware / mass-airflow-model /](/hardware/mass-airflow-model/): Modelle für die Röhre eines Masseflusssensors
+* [/ hardware / ventilator-model/](/hardware/ventilator-model/): das weiterentwickelte Modell des Beatmungsgerätes
+* [/ software / ventilator-control/](/software/ventilator-control/): die Software für die Steuerungs-Plattform des Beatmungsgerätes
 
 
 # Weiterführende Links
