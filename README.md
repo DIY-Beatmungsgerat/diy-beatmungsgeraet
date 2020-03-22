@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://github.com/DIY-Beatmungsgerat/diy-beatmungsgeraet/images/logo.png">
+  <img src="images/logo.png">
 </p>
 
 # DIY-Beatmungsgerät
