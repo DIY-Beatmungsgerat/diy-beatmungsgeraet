@@ -12,6 +12,7 @@ Das 3D-Modell des Beatmungsgeräts basiert auf Iteration #6 des Open Source Vent
 (eventuell wechseln wir die Dokumentation hier auf Englisch)
 
 # Weiterführende Links
-* https://wirvsvirushackathon.org/
-* https://devpost.com/software/diy-beatmungsgerat
+* [Homepage des WirvsVirus Hackathon](https://wirvsvirushackathon.org/)
+* [Projekt-Vorstellung auf devpost.com](https://devpost.com/software/diy-beatmungsgerat)
+* [Projekt-Vorstellung auf YouTube](https://www.youtube.com/watch?v=DzOd6LIBdXI)
 * https://gitlab.com/open-source-ventilator/OpenLung
