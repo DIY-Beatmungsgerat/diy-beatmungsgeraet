@@ -8,6 +8,9 @@
 
 #define ANALOG_INPUT_PIN  (A0)
 
+/* define the address of the sensor on the I2C bus */
+uint8_t g_nDeviceAddress = 64;
+
 int g_nConversionValue = 0; // digital value for sensor's analog input
 
 float countsToMillivolts(int nCounts);
@@ -16,7 +19,7 @@ float millivoltsToMillimetersWater(float fMillivolts);
 void setup()
 {
     // TODO: decide address to be used via GPIO input pin
-    Wire.begin(4);                // join i2c bus with address #4
+    Wire.begin(g_nDeviceAddress); // join i2c bus with address <g_nDeviceAddress>
     Wire.onReceive(receiveEvent); // register event handler
     Serial.begin(9600);           // start serial for debug output
 }
@@ -44,13 +47,20 @@ void loop()
 
 void receiveEvent(int nBytes)
 {
-    Serial.print("Rx: ");
+    char sHexBuf[6];
+
+    Serial.print("Rx (");
+    Serial.print(nBytes);
+    Serial.print(" bytes):");
     while(0 < Wire.available())   // loop through all but the last
     {
         char cRxByte = Wire.read(); // receive byte as a character
-        Serial.print(cRxByte);    // print the character
+        sprintf(sHexBuf, "0x%02X ", cRxByte);
+        //Serial.print(cRxByte, HEX);
+        sHexBuf[5] = 0;
+        Serial.print(sHexBuf);
     }
-    Serial.println("");           // print a line break
+    Serial.println();           // print a line break
 }
 
 float countsToMillivolts(int nCounts)
