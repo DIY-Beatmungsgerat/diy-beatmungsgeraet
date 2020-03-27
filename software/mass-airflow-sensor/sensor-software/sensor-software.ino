@@ -11,6 +11,7 @@
 
 /* Definition of loop delay,
  * i.e. how often to read the ANALOG_INPUT_PIN in order to get a new measurement from sensor;
+ * the value is given in milliseconds.
  * current setting: approx. every 250 ms (i.e. at a rate of 4 Hz).
  * Note: This is not exact as the UART serial output will take some of that time, 
  *       plus conversions and interrupt overhead, plus loop overhead.

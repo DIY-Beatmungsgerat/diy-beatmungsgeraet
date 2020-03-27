@@ -7,154 +7,55 @@
 /* define the address of the sensor on the I2C bus */
 uint8_t g_nDeviceAddress = 64;
 
+/* Definition of interval (in milliseconds) to query the sensor via I2C for new measurement.
+ * Note: This is not exact as there will be plenty of overhead.
+ */
+#define SENSOR_QUERY_INTERVAL (250u)
+
 /* typedef return values of the sensor API */
 enum eRetVal { SENSOR_SUCCESS = 0, SENSOR_FAIL };
 
+eRetVal readMeasurement(int16_t* pnVal/*TODO: , bool bSendCmd*/);
+
 void setup()
 {
+    uint32_t nSensorSerialNo = 0xBADC0FFE;
+
+    delay(3000); /* delay added for debugging so that the start of the serial transmission is not missed */
+
     Wire.begin();
     Serial.begin(230400); // start serial for debug output
 
     Serial.println("Finished setup.");
+
+    if( SENSOR_SUCCESS == readSerialNumber(&nSensorSerialNo) )
+    {
+        Serial.print("Read serial number: ");
+        Serial.print(nSensorSerialNo, HEX);
+        Serial.println();
+    }
+    else
+    {
+        Serial.println("Failed to read serial number.");
+    }
 }
 
 void loop()
 {
     uint16_t nVal = 0;
-    uint32_t nSerialNo = 0xBADC0FFE;
 
-    Serial.println("Loop");
-//    if( SENSOR_SUCCESS == readMeasurement(&nVal) )
-//    {
-//        Serial.print("Read measurement; raw: ");
-//        Serial.print(nVal, HEX);
-//        Serial.println();
-//    }
-//    else
-//    {
-//        Serial.println("Failed to read measurement");
-//    }
-
-    if( SENSOR_SUCCESS == txOnly1() )
+    if( SENSOR_SUCCESS == readMeasurement(&nVal) )
     {
-        Serial.println("Tx1 OK");
+        Serial.print("Read measurement; raw: ");
+        Serial.print(nVal, HEX);
+        Serial.println();
     }
     else
     {
-        Serial.println("Tx1 NOK");
-    }
-    delay(2000);
-
-//    if( SENSOR_SUCCESS == readSerialNumber(&nSerialNo) )
-//    {
-//        Serial.print("Read serial number: ");
-//        Serial.print(nSerialNo, HEX);
-//        Serial.println();
-//    }
-//    else
-//    {
-//        Serial.println("Failed to read serial number.");
-//    }
-
-    if( SENSOR_SUCCESS == rxOnly1() )
-    {
-        Serial.println("Rx1 OK");
-    }
-    else
-    {
-        Serial.println("Rx1 NOK");
-    }
-    delay(4000);
-
-    if( SENSOR_SUCCESS == txOnly2() )
-    {
-        Serial.println("Tx2 OK");
-    }
-    else
-    {
-        Serial.println("Tx2 NOK");
-    }
-    delay(2000);
-
-    if( SENSOR_SUCCESS == rxOnly2() )
-    {
-        Serial.println("Rx2 OK");
-    }
-    else
-    {
-        Serial.println("Rx2 NOK");
-    }
-    delay(4000);
-}
-
-eRetVal txOnly1(void)
-{
-    Serial.println("Tx1");
-    Wire.beginTransmission(g_nDeviceAddress); // transmit to device
-    Wire.write(0x10);
-    Wire.write(0x00);
-    Wire.endTransmission(); // stop transmitting
-
-    return SENSOR_SUCCESS;
-}
-
-eRetVal txOnly2(void)
-{
-    Serial.println("Tx2");
-    Wire.beginTransmission(g_nDeviceAddress); // transmit to device
-    Wire.write(0x31);
-    Wire.write(0xAE);
-    Wire.endTransmission(); // stop transmitting
-
-    return SENSOR_SUCCESS;
-}
-
-eRetVal rxOnly1(void)
-{
-    uint8_t nReceived = 0;
-    uint16_t nVal = 0;
-
-    Serial.println("Rx1");
-    Wire.requestFrom(g_nDeviceAddress, (uint8_t)3); // request 3 bytes from slave device
-  
-    while( Wire.available() ) // slave may send less than requested
-    {
-        ++nReceived;
-
-        char c = Wire.read(); // receive a byte as character
-        // TODO: buffer raw bytes here! then check the CRC; convert to int16_t and return it
+        Serial.println("Failed to read measurement");
     }
 
-    if( 3 != nReceived )
-    {
-        return SENSOR_FAIL;
-    }
-
-    return SENSOR_SUCCESS;
-}
-
-eRetVal rxOnly2(void)
-{
-    uint8_t nReceived = 0;
-    uint16_t nVal = 0;
-
-    Serial.println("Rx2");
-    Wire.requestFrom(g_nDeviceAddress, (uint8_t)6); // request 6 bytes from slave device
-  
-    while( Wire.available() ) // slave may send less than requested
-    {
-        ++nReceived;
-
-        char c = Wire.read(); // receive a byte as character
-        // TODO: buffer raw bytes here! then check the CRC; convert to int16_t and return it
-    }
-
-    if( 6 != nReceived )
-    {
-        return SENSOR_FAIL;
-    }
-
-    return SENSOR_SUCCESS;
+    delay(SENSOR_QUERY_INTERVAL);
 }
 
 eRetVal readMeasurement(int16_t* pnVal/*TODO: , bool bSendCmd*/)
@@ -185,16 +86,24 @@ eRetVal readMeasurementValue(int16_t* pnVal)
 {
     uint8_t nReceived = 0;
     uint16_t nVal = 0;
+    char sHexBuf[5]; /* string buffer for debug output via UART */
 
     Wire.requestFrom(g_nDeviceAddress, (uint8_t)3); // request 3 bytes from slave device
   
+    Serial.print("Raw measurement data: ");
     while( Wire.available() ) // slave may send less than requested
     {
         ++nReceived;
 
-        char c = Wire.read(); // receive a byte as character
-        // TODO: buffer raw bytes here! then check the CRC; convert to int16_t and return it
+        char cRxByte = Wire.read(); // receive a byte as character
+        // TODO: buffer raw bytes here! then check the CRC; convert to int16_t and prepare as return value
+
+        /* print every byte as two hex digits with prefix '0x', NULL-terminate the string */
+        sprintf(sHexBuf, "0x%02X ", cRxByte);
+        sHexBuf[5] = 0;
+        Serial.print(sHexBuf);
     }
+    Serial.println();
 
     if( 3 != nReceived )
     {
@@ -234,16 +143,25 @@ eRetVal readSerialNumberValue(int32_t* pnSerialNo)
 {
     uint8_t nReceived = 0;
     uint32_t nSerialNo = 0;
+    char sHexBuf[5]; /* string buffer for debug output via UART */
 
     Wire.requestFrom(g_nDeviceAddress, (uint8_t)6); // request 6 bytes from slave device
-  
+
+    Serial.print("Raw serial number data: ");
     while( Wire.available() ) // slave may send less than requested
     {
         ++nReceived;
 
-        char c = Wire.read(); // receive a byte as character
+        char cRxByte = Wire.read(); // receive a byte as character
         // TODO: do something with the serial number here!
+        //       i.e. prepare 32 bit return value and check CRC
+
+        /* print every byte as two hex digits with prefix '0x', NULL-terminate the string */
+        sprintf(sHexBuf, "0x%02X ", cRxByte);
+        sHexBuf[5] = 0;
+        Serial.print(sHexBuf);
     }
+    Serial.println();
 
     if( 6 != nReceived )
     {
