@@ -18,8 +18,8 @@ Wir arbeiten an verschiedensten Themen. Zum einen etwa an der Weiterentwicklung 
 
 * [/ hardware / mass-airflow-model /](/hardware/mass-airflow-model/): Modelle für die Röhre eines Masseflusssensors
 * [/ hardware / ventilator-model/](/hardware/ventilator-model/): das weiterentwickelte Modell des Beatmungsgerätes
-* [/ software / mass-airflow-sensor / controller-software/](mass-airflow-sensor/controller-software/): die Software, die auf der Plattform läuft, um den Luftmassesensor auszulesen (Mock-Up)
-* [/ software / mass-airflow-sensor / sensor-software/](software/mass-airflow-sensor/sensor-software/): die Software, die auf dem Sensor selbst läuft, der Luftmassesensor-Daten bereitstellt (Mock-Up)
+* [/ software / mass-airflow-sensor / controller-software/](/software/mass-airflow-sensor/controller-software/): die Software, die auf der Plattform läuft, um den Luftmassesensor auszulesen (Mock-Up)
+* [/ software / mass-airflow-sensor / sensor-software/](/software/mass-airflow-sensor/sensor-software/): die Software, die auf dem Sensor selbst läuft, der Luftmassesensor-Daten bereitstellt (Mock-Up)
 * [/ software / ventilator-control/](/software/ventilator-control/): die Software für die Steuerungs-Plattform des Beatmungsgerätes
 
 
