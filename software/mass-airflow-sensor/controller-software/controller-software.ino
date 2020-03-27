@@ -7,57 +7,157 @@
 /* define the address of the sensor on the I2C bus */
 uint8_t g_nDeviceAddress = 64;
 
-enum retval { SENSOR_SUCCESS = 0, SENSOR_FAIL };
+/* typedef return values of the sensor API */
+enum eRetVal { SENSOR_SUCCESS = 0, SENSOR_FAIL };
 
 void setup()
 {
     Wire.begin();
-    Serial.begin(9600); // start serial for debug output
+    Serial.begin(230400); // start serial for debug output
+
+    Serial.println("Finished setup.");
 }
-
-// * (public)  retval readMeasurement(int16_t* pnVal) =
-// * (private) retval sendStartMeasurementCmd(void) +
-// * (private) retval readMeasurementValue(int16_t* nVal)
-retval readMeasurement(int16_t* pnVal);
-
-// * (public)  retval readSerialNumber(int32_t* pnSerialNo) =
-// * (private) retval sendReadSerialNumberCmd(void) +
-// * (private) retval readSerialNumberValue(int32_t* pnSerialNo)
-retval readSerialNumber(int32_t* pnSerialNo);
 
 void loop()
 {
     uint16_t nVal = 0;
     uint32_t nSerialNo = 0xBADC0FFE;
 
-    if( SENSOR_SUCCESS == readMeasurement(&nVal) )
+    Serial.println("Loop");
+//    if( SENSOR_SUCCESS == readMeasurement(&nVal) )
+//    {
+//        Serial.print("Read measurement; raw: ");
+//        Serial.print(nVal, HEX);
+//        Serial.println();
+//    }
+//    else
+//    {
+//        Serial.println("Failed to read measurement");
+//    }
+
+    if( SENSOR_SUCCESS == txOnly1() )
     {
-        Serial.print("Read measurement; raw: ");
-        Serial.print(nVal, HEX);
-        Serial.println();
+        Serial.println("Tx1 OK");
     }
     else
     {
-        Serial.println("Failed to read measurement");
+        Serial.println("Tx1 NOK");
     }
+    delay(2000);
 
-    delay(1000);
+//    if( SENSOR_SUCCESS == readSerialNumber(&nSerialNo) )
+//    {
+//        Serial.print("Read serial number: ");
+//        Serial.print(nSerialNo, HEX);
+//        Serial.println();
+//    }
+//    else
+//    {
+//        Serial.println("Failed to read serial number.");
+//    }
 
-    if( SENSOR_SUCCESS == readSerialNumber(&nSerialNo) )
+    if( SENSOR_SUCCESS == rxOnly1() )
     {
-        Serial.print("Read serial number: ");
-        Serial.print(nSerialNo, HEX);
-        Serial.println();
+        Serial.println("Rx1 OK");
     }
     else
     {
-        Serial.println("Failed to read serial number.");
+        Serial.println("Rx1 NOK");
     }
+    delay(4000);
 
-    delay(1000);
+    if( SENSOR_SUCCESS == txOnly2() )
+    {
+        Serial.println("Tx2 OK");
+    }
+    else
+    {
+        Serial.println("Tx2 NOK");
+    }
+    delay(2000);
+
+    if( SENSOR_SUCCESS == rxOnly2() )
+    {
+        Serial.println("Rx2 OK");
+    }
+    else
+    {
+        Serial.println("Rx2 NOK");
+    }
+    delay(4000);
 }
 
-retval readMeasurement(int16_t* pnVal/*TODO: , bool bSendCmd*/)
+eRetVal txOnly1(void)
+{
+    Serial.println("Tx1");
+    Wire.beginTransmission(g_nDeviceAddress); // transmit to device
+    Wire.write(0x10);
+    Wire.write(0x00);
+    Wire.endTransmission(); // stop transmitting
+
+    return SENSOR_SUCCESS;
+}
+
+eRetVal txOnly2(void)
+{
+    Serial.println("Tx2");
+    Wire.beginTransmission(g_nDeviceAddress); // transmit to device
+    Wire.write(0x31);
+    Wire.write(0xAE);
+    Wire.endTransmission(); // stop transmitting
+
+    return SENSOR_SUCCESS;
+}
+
+eRetVal rxOnly1(void)
+{
+    uint8_t nReceived = 0;
+    uint16_t nVal = 0;
+
+    Serial.println("Rx1");
+    Wire.requestFrom(g_nDeviceAddress, (uint8_t)3); // request 3 bytes from slave device
+  
+    while( Wire.available() ) // slave may send less than requested
+    {
+        ++nReceived;
+
+        char c = Wire.read(); // receive a byte as character
+        // TODO: buffer raw bytes here! then check the CRC; convert to int16_t and return it
+    }
+
+    if( 3 != nReceived )
+    {
+        return SENSOR_FAIL;
+    }
+
+    return SENSOR_SUCCESS;
+}
+
+eRetVal rxOnly2(void)
+{
+    uint8_t nReceived = 0;
+    uint16_t nVal = 0;
+
+    Serial.println("Rx2");
+    Wire.requestFrom(g_nDeviceAddress, (uint8_t)6); // request 6 bytes from slave device
+  
+    while( Wire.available() ) // slave may send less than requested
+    {
+        ++nReceived;
+
+        char c = Wire.read(); // receive a byte as character
+        // TODO: buffer raw bytes here! then check the CRC; convert to int16_t and return it
+    }
+
+    if( 6 != nReceived )
+    {
+        return SENSOR_FAIL;
+    }
+
+    return SENSOR_SUCCESS;
+}
+
+eRetVal readMeasurement(int16_t* pnVal/*TODO: , bool bSendCmd*/)
 {
     if( SENSOR_SUCCESS != sendStartMeasurementCmd() )
     {
@@ -71,7 +171,7 @@ retval readMeasurement(int16_t* pnVal/*TODO: , bool bSendCmd*/)
     return SENSOR_SUCCESS;
 }
 
-retval sendStartMeasurementCmd(void)
+eRetVal sendStartMeasurementCmd(void)
 {
     Wire.beginTransmission(g_nDeviceAddress); // transmit to device
     Wire.write(0x10);
@@ -81,7 +181,7 @@ retval sendStartMeasurementCmd(void)
     return SENSOR_SUCCESS;
 }
 
-retval readMeasurementValue(int16_t* pnVal)
+eRetVal readMeasurementValue(int16_t* pnVal)
 {
     uint8_t nReceived = 0;
     uint16_t nVal = 0;
@@ -106,7 +206,7 @@ retval readMeasurementValue(int16_t* pnVal)
     return SENSOR_SUCCESS;
 }
 
-retval readSerialNumber(int32_t* pnSerialNo)
+eRetVal readSerialNumber(int32_t* pnSerialNo)
 {
     if( SENSOR_SUCCESS != sendReadSerialNumberCmd() )
     {
@@ -120,7 +220,7 @@ retval readSerialNumber(int32_t* pnSerialNo)
     return SENSOR_SUCCESS;
 }
 
-retval sendReadSerialNumberCmd(void)
+eRetVal sendReadSerialNumberCmd(void)
 {
     Wire.beginTransmission(g_nDeviceAddress); // transmit to device
     Wire.write(0x31);
@@ -130,7 +230,7 @@ retval sendReadSerialNumberCmd(void)
     return SENSOR_SUCCESS;
 }
 
-retval readSerialNumberValue(int32_t* pnSerialNo)
+eRetVal readSerialNumberValue(int32_t* pnSerialNo)
 {
     uint8_t nReceived = 0;
     uint32_t nSerialNo = 0;
