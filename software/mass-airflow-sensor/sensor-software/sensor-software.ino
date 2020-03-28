@@ -1,4 +1,5 @@
 #include <Wire.h>
+#include "crc8.h"
 
 // Test setup:
 //   Arduino Nano pin asssignment:
@@ -66,6 +67,15 @@ void loop()
 
     /* Wait until next cyclic measurement is made */
     delay(SENSOR_LOOP_DELAY);
+}
+
+crc_t calcCrc(const unsigned char *pData, size_t nDataLen)
+{
+    crc_t nCrc = crc_init();
+    nCrc = crc_update(nCrc, pData, nDataLen);
+    nCrc = crc_finalize(nCrc);
+
+    return nCrc;
 }
 
 /* Parse received command and switch sensor's state */
@@ -144,19 +154,26 @@ void transmitRequestEvent(void)
         case SENSOR_MODE_MEASURE:
             /* TODO/FIXME: add true measurement data and add CRC */
             Serial.println("Tx measurement");
-            Wire.write((char)'F');
-            Wire.write((char)'L');
-            Wire.write((char)'-');
+            char sMeas[2];
+            sMeas[0] = 'F';
+            sMeas[1] = 'L';
+            Wire.write((char)sMeas[0]);
+            Wire.write((char)sMeas[1]);
+            Wire.write((char)calcCrc(&sMeas[0], 2) );
             break;
         case SENSOR_MODE_SERIALNO:
-            /* TODO/FIXME: add correct CRC for fake serial no */
+            char sSerNo[4];
+            sSerNo[0] = 'S';
+            sSerNo[1] = 'R';
+            sSerNo[2] = 'N';
+            sSerNo[3] = 'O';
             Serial.println("Tx serialno");
-            Wire.write((char)'S');
-            Wire.write((char)'R');
-            Wire.write((char)'-');
-            Wire.write((char)'N');
-            Wire.write((char)'O');
-            Wire.write((char)'-');
+            Wire.write((char)sSerNo[0]);
+            Wire.write((char)sSerNo[1]);
+            Wire.write((char)calcCrc(&sSerNo[0], 2) );
+            Wire.write((char)sSerNo[2]);
+            Wire.write((char)sSerNo[3]);
+            Wire.write((char)calcCrc(&sSerNo[2], 2) );
             break;
         case SENSOR_MODE_NONE:
         default:
