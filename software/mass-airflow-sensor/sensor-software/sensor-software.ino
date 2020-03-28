@@ -28,9 +28,10 @@ enum eSensorMode { SENSOR_MODE_NONE = 0, SENSOR_MODE_MEASURE, SENSOR_MODE_SERIAL
 uint8_t g_nDeviceAddress = 64;
 
 /* Initialize global variables */
-volatile int g_nConversionValue = 0; /* digital value for sensor's analog input */
+//volatile int g_nConversionValue = 0; /* digital value for sensor's analog input */
 volatile eSensorMode g_eMode = SENSOR_MODE_NONE; /* sensor mode start with 'NONE' */
 
+volatile int16_t g_nDiffPressure = 0;
 
 void setup()
 {
@@ -42,7 +43,7 @@ void setup()
 
 void loop()
 {
-    g_nConversionValue = analogRead(ANALOG_INPUT_PIN);
+    int nConversionValue = analogRead(ANALOG_INPUT_PIN);
 
     if( SENSOR_MODE_MEASURE == g_eMode )
     {
@@ -56,14 +57,21 @@ void loop()
     // Debug output the sensor's reading (conversion valie)
     Serial.print("Sensor value: ");
 
-    Serial.print(g_nConversionValue); // raw reading
+    Serial.print(nConversionValue); // raw reading
     Serial.print(" counts, ");
 
-    Serial.print( countsToMillivolts(g_nConversionValue) );
+    Serial.print( countsToMillivolts(nConversionValue) );
     Serial.print(" mV, ");
 
-    Serial.print( millivoltsToMillimetersWater( countsToMillivolts( g_nConversionValue ) ) );
-    Serial.println(" mmH2O");
+    float fPressure = millivoltsToMillimetersWater( countsToMillivolts( nConversionValue ) );
+    Serial.print( fPressure );
+    Serial.print(" mmH2O, ");
+
+    g_nDiffPressure = ((int16_t)fPressure) << 2; /* the two least-significant bits are always zero */
+    Serial.print( g_nDiffPressure );
+    Serial.println(" mmH2O*4");
+
+    /* TODO/FIXME: add conversion from difference pressure to volume flow */
 
     /* Wait until next cyclic measurement is made */
     delay(SENSOR_LOOP_DELAY);
@@ -155,8 +163,10 @@ void transmitRequestEvent(void)
             /* TODO/FIXME: add true measurement data and add CRC */
             Serial.println("Tx measurement");
             char sMeas[2];
-            sMeas[0] = 'F';
-            sMeas[1] = 'L';
+            //sMeas[0] = 'F';
+            //sMeas[1] = 'L';
+            sMeas[0] = (uint8_t)( (g_nDiffPressure & 0xFF00) >> 8 );
+            sMeas[1] = (uint8_t)(g_nDiffPressure & 0xFF);
             Wire.write((char)sMeas[0]);
             Wire.write((char)sMeas[1]);
             Wire.write((char)calcCrc(&sMeas[0], 2) );

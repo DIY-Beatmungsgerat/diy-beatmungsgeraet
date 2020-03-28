@@ -48,9 +48,12 @@ void loop()
 
     if( SENSOR_SUCCESS == readMeasurement(&nVal) )
     {
-        Serial.print("Read measurement; raw: ");
-        Serial.print(nVal, HEX);
-        Serial.println();
+        //Serial.print("Read measurement; raw (decimal): ");
+        //Serial.println( nVal );
+        Serial.print("Measurement: ");
+        Serial.print( nVal >> 2 );
+        Serial.println(" mmH2O");
+        /* TODO/FIXME: measurement will change to volume flow, currently it's differential pressure */
     }
     else
     {
@@ -97,12 +100,12 @@ eRetVal readMeasurementValue(int16_t* pnVal)
 {
     uint8_t nReceived = 0;
     int16_t nVal = 0;
-    char sHexBuf[5]; /* string buffer for debug output via UART */
+    char sHexBuf[12]; /* string buffer for debug output via UART */
     uint8_t nMeasRx[3];
 
     Wire.requestFrom(g_nDeviceAddress, (uint8_t)3); // request 3 bytes from slave device
   
-    Serial.print("Raw measurement data: ");
+//    Serial.print("Raw measurement data: ");
     while( Wire.available() ) // slave may send less than requested
     {
         uint8_t cRxByte = Wire.read(); // receive a byte as character
@@ -113,12 +116,12 @@ eRetVal readMeasurementValue(int16_t* pnVal)
         }
         ++nReceived;
 
-        /* print every byte as two hex digits with prefix '0x', NULL-terminate the string */
-        sprintf(sHexBuf, "0x%02X ", cRxByte);
-        sHexBuf[5] = 0;
-        Serial.print(sHexBuf);
+//        /* print every byte as two hex digits with prefix '0x', NULL-terminate the string */
+//        sprintf(sHexBuf, "0x%02X ", cRxByte);
+//        sHexBuf[5] = 0;
+//        Serial.print(sHexBuf);
     }
-    Serial.println();
+//    Serial.println();
 
     if( 3 != nReceived )
     {
@@ -128,26 +131,38 @@ eRetVal readMeasurementValue(int16_t* pnVal)
     }
 
     // calculate CRC here and check with received CRC
-    Serial.print("Calculated CRC: ");
     crc_t cCalculatedCrc = calcCrc(&nMeasRx[0], 2);
-    sprintf(sHexBuf, "0x%02X ", (uint8_t)cCalculatedCrc);
-    sHexBuf[4] = 0;
-    Serial.print(sHexBuf);
 
-    Serial.print(", received CRC: ");
-    sprintf(sHexBuf, "0x%02X ", (uint8_t)nMeasRx[2]);
-    sHexBuf[4] = 0;
-    Serial.print(sHexBuf);
-    Serial.println();
+//    Serial.print("Calculated CRC: ");
+//    sprintf(sHexBuf, "0x%02X ", (uint8_t)cCalculatedCrc);
+//    sHexBuf[4] = 0;
+//    Serial.print(sHexBuf);
+//
+//    Serial.print(", received CRC: ");
+//    sprintf(sHexBuf, "0x%02X ", (uint8_t)nMeasRx[2]);
+//    sHexBuf[4] = 0;
+//    Serial.print(sHexBuf);
+//    Serial.println();
 
     if( nMeasRx[2] != (uint8_t)cCalculatedCrc )
     {
         Serial.println("[ERROR] CRC does not match.");
         return SENSOR_CRC_ERROR;
     }
+//    else
+//    {
+//        Serial.println("[DEBUG] CRC check OK.");
+//    }
 
     // convert to int16_t and prepare as return value
-    nVal = (nMeasRx[0] << 8) | nMeasRx[1];
+    nVal = ((int16_t)nMeasRx[0] << 8) | (int16_t)nMeasRx[1];
+    
+//    Serial.print("16 bit sensor reading: ");
+//    Serial.println(nVal);
+
+//    sprintf(sHexBuf, "0x%02X 0x%02X ", nMeasRx[0], nMeasRx[1]);
+//    sHexBuf[11] = 0;
+//    Serial.println(sHexBuf);
 
     *pnVal = nVal;
     return SENSOR_SUCCESS;
@@ -181,7 +196,7 @@ eRetVal readSerialNumberValue(int32_t* pnSerialNo)
 {
     uint8_t nReceived = 0;
     uint32_t nSerialNo = 0;
-    char sHexBuf[5]; /* string buffer for debug output via UART */
+    char sHexBuf[6]; /* string buffer for debug output via UART */
 
     Wire.requestFrom(g_nDeviceAddress, (uint8_t)6); // request 6 bytes from slave device
 
@@ -196,7 +211,7 @@ eRetVal readSerialNumberValue(int32_t* pnSerialNo)
 
         /* print every byte as two hex digits with prefix '0x', NULL-terminate the string */
         sprintf(sHexBuf, "0x%02X ", cRxByte);
-        sHexBuf[4] = 0;
+        sHexBuf[5] = 0;
         Serial.print(sHexBuf);
     }
     Serial.println();
