@@ -9,9 +9,10 @@
 uint8_t g_nDeviceAddress = 64;
 
 /* Definition of interval (in milliseconds) to query the sensor via I2C for new measurement.
+ * Current setting: query approx. every 50 ms, i.e. at a rate of 20 Hz.
  * Note: This is not exact as there will be plenty of overhead.
  */
-#define SENSOR_QUERY_INTERVAL (1000u)
+#define SENSOR_QUERY_INTERVAL (50u)
 
 /* typedef return values of the sensor API */
 enum eRetVal { SENSOR_SUCCESS = 0, SENSOR_FAIL, SENSOR_CRC_ERROR };

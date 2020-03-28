@@ -13,11 +13,11 @@
 /* Definition of loop delay,
  * i.e. how often to read the ANALOG_INPUT_PIN in order to get a new measurement from sensor;
  * the value is given in milliseconds.
- * current setting: approx. every 250 ms (i.e. at a rate of 4 Hz).
+ * current setting: approx. every 50 ms (i.e. at a rate of 20 Hz).
  * Note: This is not exact as the UART serial output will take some of that time, 
  *       plus conversions and interrupt overhead, plus loop overhead.
  */
-#define SENSOR_LOOP_DELAY (250u)
+#define SENSOR_LOOP_DELAY (50u)
 
 /* Definition of sensor modes, i.e. what values will be return upon Wire transmit request event */
 enum eSensorMode { SENSOR_MODE_NONE = 0, SENSOR_MODE_MEASURE, SENSOR_MODE_SERIALNO };
