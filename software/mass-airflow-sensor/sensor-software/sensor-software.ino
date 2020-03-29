@@ -6,18 +6,42 @@
 //     I2C SDA:      A4
 //     I2C SCL:      A5
 //     Analog input: A0
+//     Real-time supervision pin: A3
+//     Interrupt supervision pin: A2
 
 /* Mapping of the analog input pin, define alias here */
-#define ANALOG_INPUT_PIN  (A0)
+#define ANALOG_INPUT_PIN      (A0)
 
-/* Definition of loop delay,
+/* Mapping of the digital output pin for real-time supervision, define alias here */
+#define RT_SUPERVISION_PIN    (A3)
+
+/* Mapping of the digital output pin for interrupt supervision, define alias here */
+#define INT_SUPERVISION_PIN   (A2)
+
+//#define DEBUG
+#ifdef DEBUG
+    #define debugPrint    Serial.print
+    #define debugPrintln  Serial.println
+#else
+    #define debugPrint    
+    #define debugPrintln  
+#endif
+
+/* Definition of sensor loop interval and loop delay,
  * i.e. how often to read the ANALOG_INPUT_PIN in order to get a new measurement from sensor;
  * the value is given in milliseconds.
- * current setting: approx. every 50 ms (i.e. at a rate of 20 Hz).
+ * current setting: approx. every 10 ms (i.e. at a rate of 100 Hz).
  * Note: This is not exact as the UART serial output will take some of that time, 
  *       plus conversions and interrupt overhead, plus loop overhead.
+ *       When DEBUG output is active, it takes about 2 ms per cycle.
+ *       Caution: The interrupt overhead is not subtracted automatically.
  */
-#define SENSOR_LOOP_DELAY (50u)
+#define SENSOR_LOOP_INTERVAL (10u)
+#ifdef DEBUG
+    #define SENSOR_LOOP_DELAY (SENSOR_LOOP_INTERVAL - (2u))
+#else
+    #define SENSOR_LOOP_DELAY (SENSOR_LOOP_INTERVAL)
+#endif
 
 /* Definition of sensor modes, i.e. what values will be return upon Wire transmit request event */
 enum eSensorMode { SENSOR_MODE_NONE = 0, SENSOR_MODE_MEASURE, SENSOR_MODE_SERIALNO };
@@ -35,43 +59,67 @@ volatile int16_t g_nDiffPressure = 0;
 
 void setup()
 {
+    Serial.begin(230400);         // start serial for debug output
+
     Wire.begin(g_nDeviceAddress); // join i2c bus with address <g_nDeviceAddress>
     Wire.onReceive(receiveEvent); // register event handler for Rx
     Wire.onRequest(transmitRequestEvent); // register event handler for Tx request
-    Serial.begin(230400);         // start serial for debug output
+
+#ifdef RT_SUPERVISION_PIN
+    pinMode(RT_SUPERVISION_PIN, OUTPUT);
+#endif
+#ifdef INT_SUPERVISION_PIN
+    pinMode(INT_SUPERVISION_PIN, OUTPUT);
+#endif
+
+#ifdef DEBUG
+    Serial.println("Debug mode active.");
+#else
+    Serial.println("Debug mode inactive, no more output on serial.");
+#endif
 }
 
 void loop()
 {
-    int nConversionValue = analogRead(ANALOG_INPUT_PIN);
+    static int nConversionValue = 0;
+
+#ifdef RT_SUPERVISION_PIN
+    digitalWrite(RT_SUPERVISION_PIN, HIGH);
+#endif
+    
+    nConversionValue = analogRead(ANALOG_INPUT_PIN);
 
     if( SENSOR_MODE_MEASURE == g_eMode )
     {
-        Serial.print("[*] "); /* in measuring mode */
+        debugPrint("[*] "); /* in measuring mode */
     }
     else
     {
-        Serial.print("[ ] "); /* not in measuring mode */
+        debugPrint("[ ] "); /* not in measuring mode */
     }
 
     // Debug output the sensor's reading (conversion valie)
-    Serial.print("Sensor value: ");
+    debugPrint("Sensor value: ");
 
-    Serial.print(nConversionValue); // raw reading
-    Serial.print(" counts, ");
+    debugPrint(nConversionValue); // raw reading
+    debugPrint(" counts, ");
 
-    Serial.print( countsToMillivolts(nConversionValue) );
-    Serial.print(" mV, ");
+    debugPrint( countsToMillivolts(nConversionValue) );
+    debugPrint(" mV, ");
 
     float fPressure = millivoltsToMillimetersWater( countsToMillivolts( nConversionValue ) );
-    Serial.print( fPressure );
-    Serial.print(" mmH2O, ");
+    debugPrint( fPressure );
+    debugPrint(" mmH2O, ");
 
     g_nDiffPressure = ((int16_t)fPressure) << 2; /* the two least-significant bits are always zero */
-    Serial.print( g_nDiffPressure );
-    Serial.println(" mmH2O*4");
+    debugPrint( g_nDiffPressure );
+    debugPrintln(" mmH2O*4");
 
     /* TODO/FIXME: add conversion from difference pressure to volume flow */
+
+#ifdef RT_SUPERVISION_PIN
+    digitalWrite(RT_SUPERVISION_PIN, LOW);
+#endif
 
     /* Wait until next cyclic measurement is made */
     delay(SENSOR_LOOP_DELAY);
@@ -93,9 +141,13 @@ void receiveEvent(int nBytes)
     uint8_t cCmdBytes[2]; /* command buffer (a command is 16 bit wide, or 2 bytes) */
     int nRxCount = 0;
 
-    Serial.print("Rx (");
-    Serial.print(nBytes);
-    Serial.print(" bytes): ");
+#ifdef INT_SUPERVISION_PIN
+    digitalWrite(INT_SUPERVISION_PIN, HIGH);
+#endif
+
+    debugPrint("Rx (");
+    debugPrint(nBytes);
+    debugPrint(" bytes): ");
     while(0 < Wire.available())   // loop through all but the last
     {
         uint8_t cRxByte = Wire.read(); /* receive byte as a character */
@@ -111,57 +163,71 @@ void receiveEvent(int nBytes)
         /* print every byte as two hex digits with prefix '0x', NULL-terminate the string */
         sprintf(sHexBuf, "0x%02X ", cRxByte);
         sHexBuf[5] = 0;
-        Serial.print(sHexBuf);
+        debugPrint(sHexBuf);
     }
-    Serial.println();
+    debugPrintln("");
 
     if( nRxCount < 2 )
     {
+#ifdef INT_SUPERVISION_PIN
+        digitalWrite(INT_SUPERVISION_PIN, LOW);
+#endif
         return;
     }
 
     if( nRxCount != nBytes )
     {
-        Serial.print("[DEBUG] Message length does not match (Rx count: ");
-        Serial.print(nRxCount);
-        Serial.print("; Message length: ");
-        Serial.print(nBytes);
-        Serial.println(")");
+        debugPrint("[DEBUG] Message length does not match (Rx count: ");
+        debugPrint(nRxCount);
+        debugPrint("; Message length: ");
+        debugPrint(nBytes);
+        debugPrintln(")");
         g_eMode = SENSOR_MODE_NONE;
+#ifdef INT_SUPERVISION_PIN
+        digitalWrite(INT_SUPERVISION_PIN, LOW);
+#endif
         return;
     }
 
     if( 0x10 == cCmdBytes[0] && 0x00 == cCmdBytes[1] )
     {
-        Serial.println("Rx'ed 'start measurement' command");
+        debugPrintln("Rx'ed 'start measurement' command");
         g_eMode = SENSOR_MODE_MEASURE;
     }
     else if( 0x31 == cCmdBytes[0] && 0xAE == cCmdBytes[1] )
     {
-        Serial.println("Rx'ed 'read serial number' command");
+        debugPrintln("Rx'ed 'read serial number' command");
         g_eMode = SENSOR_MODE_SERIALNO;
     }
     else
     {
-        Serial.println("Rx'ed unknown command: ");
+        debugPrintln("Rx'ed unknown command: ");
         sprintf(sHexBuf, "0x%02X 0x%02X ", cCmdBytes[0], cCmdBytes[1]);
         sHexBuf[10] = 0;
-        Serial.print(sHexBuf);
+        debugPrint(sHexBuf);
         
-        Serial.println("(ignored)");
+        debugPrintln("(ignored)");
     }
+
+#ifdef INT_SUPERVISION_PIN
+        digitalWrite(INT_SUPERVISION_PIN, LOW);
+#endif
 }
 
 /* Transmit data dependent on current sensor state */
 void transmitRequestEvent(void)
 {
-    Serial.println("Tx request");
+#ifdef INT_SUPERVISION_PIN
+    digitalWrite(INT_SUPERVISION_PIN, HIGH);
+#endif
+
+    debugPrintln("Tx request");
 
     switch( g_eMode )
     {
         case SENSOR_MODE_MEASURE:
             /* TODO/FIXME: add true measurement data and add CRC */
-            Serial.println("Tx measurement");
+            debugPrintln("Tx measurement");
             char sMeas[2];
             //sMeas[0] = 'F';
             //sMeas[1] = 'L';
@@ -177,7 +243,7 @@ void transmitRequestEvent(void)
             sSerNo[1] = 'R';
             sSerNo[2] = 'N';
             sSerNo[3] = 'O';
-            Serial.println("Tx serialno");
+            debugPrintln("Tx serialno");
             Wire.write((char)sSerNo[0]);
             Wire.write((char)sSerNo[1]);
             Wire.write((char)calcCrc(&sSerNo[0], 2) );
@@ -187,9 +253,13 @@ void transmitRequestEvent(void)
             break;
         case SENSOR_MODE_NONE:
         default:
-            Serial.println("Tx nothing (controller will read 0xFF)");
+            debugPrintln("Tx nothing (controller will read 0xFF)");
             break;
     }
+
+#ifdef INT_SUPERVISION_PIN
+        digitalWrite(INT_SUPERVISION_PIN, LOW);
+#endif
 }
 
 float countsToMillivolts(int nCounts)
