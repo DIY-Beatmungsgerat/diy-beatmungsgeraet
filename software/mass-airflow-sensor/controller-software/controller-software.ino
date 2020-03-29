@@ -3,16 +3,38 @@
 
 // Test setup:
 //   Arduino Leonardo:
-//     pin asssignment 2 (SDA), 3 (SCL)
+//     I2C SDA:      2
+//     I2C SCL:      3
+//     Real-time supervision pin: 4
 
 /* define the address of the sensor on the I2C bus */
 uint8_t g_nDeviceAddress = 64;
 
+/* Mapping of the digital output pin for real-time supervision, define alias here */
+#define RT_SUPERVISION_PIN    (4)
+
+//#define DEBUG
+#ifdef DEBUG
+    #define debugPrint    Serial.print
+    #define debugPrintln  Serial.println
+#else
+    #define debugPrint    
+    #define debugPrintln  
+#endif
+
 /* Definition of interval (in milliseconds) to query the sensor via I2C for new measurement.
- * Current setting: query approx. every 50 ms, i.e. at a rate of 20 Hz.
+ * Current setting: query approx. every 20 ms, i.e. at a rate of 50 Hz.
  * Note: This is not exact as there will be plenty of overhead.
+  *      When DEBUG output is active, it takes about 1 ms per cycle.
+  *      When it's not active, it will take approx. 0.8 ms per cycle also, so subtract 1 ms here.
+ * Caution: The interrupt overhead is not subtracted automatically.
  */
-#define SENSOR_QUERY_INTERVAL (50u)
+#define SENSOR_QUERY_INTERVAL (20u)
+#ifdef DEBUG
+    #define SENSOR_LOOP_DELAY (SENSOR_QUERY_INTERVAL - (1u))
+#else
+    #define SENSOR_LOOP_DELAY (SENSOR_QUERY_INTERVAL - (1u))
+#endif
 
 /* typedef return values of the sensor API */
 enum eRetVal { SENSOR_SUCCESS = 0, SENSOR_FAIL, SENSOR_CRC_ERROR };
@@ -26,42 +48,55 @@ void setup()
 
     delay(3000); /* delay added for debugging so that the start of the serial transmission is not missed */
 
-    Wire.begin();
     Serial.begin(230400); // start serial for debug output
 
-    Serial.println("Finished setup.");
+    Wire.begin();
+
+#ifdef RT_SUPERVISION_PIN
+    pinMode(RT_SUPERVISION_PIN, OUTPUT);
+#endif
+
+    debugPrintln("Finished setup.");
 
     if( SENSOR_SUCCESS == readSerialNumber(&nSensorSerialNo) )
     {
-        Serial.print("Read serial number: ");
-        Serial.print(nSensorSerialNo, HEX);
-        Serial.println();
+        debugPrint("Read serial number: ");
+        debugPrint(nSensorSerialNo, HEX);
+        debugPrintln("");
     }
     else
     {
-        Serial.println("Failed to read serial number.");
+        debugPrintln("Failed to read serial number.");
     }
 }
 
 void loop()
 {
-    uint16_t nVal = 0;
+    static uint16_t nVal = 0;
+
+#ifdef RT_SUPERVISION_PIN
+    digitalWrite(RT_SUPERVISION_PIN, HIGH);
+#endif
 
     if( SENSOR_SUCCESS == readMeasurement(&nVal) )
     {
-        //Serial.print("Read measurement; raw (decimal): ");
-        //Serial.println( nVal );
-        Serial.print("Measurement: ");
-        Serial.print( nVal >> 2 );
-        Serial.println(" mmH2O");
+        //debugPrint("Read measurement; raw (decimal): ");
+        //debugPrintln( nVal );
+        debugPrint("Measurement: ");
+        debugPrint( nVal >> 2 );
+        debugPrintln(" mmH2O");
         /* TODO/FIXME: measurement will change to volume flow, currently it's differential pressure */
     }
     else
     {
-        Serial.println("Failed to read measurement");
+        debugPrintln("Failed to read measurement");
     }
 
-    delay(SENSOR_QUERY_INTERVAL);
+#ifdef RT_SUPERVISION_PIN
+    digitalWrite(RT_SUPERVISION_PIN, LOW);
+#endif
+
+    delay(SENSOR_LOOP_DELAY);
 }
 
 crc_t calcCrc(const unsigned char *pData, size_t nDataLen)
@@ -106,7 +141,7 @@ eRetVal readMeasurementValue(int16_t* pnVal)
 
     Wire.requestFrom(g_nDeviceAddress, (uint8_t)3); // request 3 bytes from slave device
   
-//    Serial.print("Raw measurement data: ");
+//    debugPrint("Raw measurement data: ");
     while( Wire.available() ) // slave may send less than requested
     {
         uint8_t cRxByte = Wire.read(); // receive a byte as character
@@ -120,13 +155,13 @@ eRetVal readMeasurementValue(int16_t* pnVal)
 //        /* print every byte as two hex digits with prefix '0x', NULL-terminate the string */
 //        sprintf(sHexBuf, "0x%02X ", cRxByte);
 //        sHexBuf[5] = 0;
-//        Serial.print(sHexBuf);
+//        debugPrint(sHexBuf);
     }
-//    Serial.println();
+//    debugPrintln("");
 
     if( 3 != nReceived )
     {
-        Serial.println("[ERROR] Did not receive 3 bytes.");
+        debugPrintln("[ERROR] Did not receive 3 bytes.");
         *pnVal = 0xDEAD;
         return SENSOR_FAIL;
     }
@@ -134,36 +169,36 @@ eRetVal readMeasurementValue(int16_t* pnVal)
     // calculate CRC here and check with received CRC
     crc_t cCalculatedCrc = calcCrc(&nMeasRx[0], 2);
 
-//    Serial.print("Calculated CRC: ");
+//    debugPrint("Calculated CRC: ");
 //    sprintf(sHexBuf, "0x%02X ", (uint8_t)cCalculatedCrc);
 //    sHexBuf[4] = 0;
-//    Serial.print(sHexBuf);
+//    debugPrint(sHexBuf);
 //
-//    Serial.print(", received CRC: ");
+//    debugPrint(", received CRC: ");
 //    sprintf(sHexBuf, "0x%02X ", (uint8_t)nMeasRx[2]);
 //    sHexBuf[4] = 0;
-//    Serial.print(sHexBuf);
-//    Serial.println();
+//    debugPrint(sHexBuf);
+//    debugPrintln("");
 
     if( nMeasRx[2] != (uint8_t)cCalculatedCrc )
     {
-        Serial.println("[ERROR] CRC does not match.");
+        debugPrintln("[ERROR] CRC does not match.");
         return SENSOR_CRC_ERROR;
     }
 //    else
 //    {
-//        Serial.println("[DEBUG] CRC check OK.");
+//        debugPrintln("[DEBUG] CRC check OK.");
 //    }
 
     // convert to int16_t and prepare as return value
     nVal = ((int16_t)nMeasRx[0] << 8) | (int16_t)nMeasRx[1];
     
-//    Serial.print("16 bit sensor reading: ");
-//    Serial.println(nVal);
+//    debugPrint("16 bit sensor reading: ");
+//    debugPrintln(nVal);
 
 //    sprintf(sHexBuf, "0x%02X 0x%02X ", nMeasRx[0], nMeasRx[1]);
 //    sHexBuf[11] = 0;
-//    Serial.println(sHexBuf);
+//    debugPrintln(sHexBuf);
 
     *pnVal = nVal;
     return SENSOR_SUCCESS;
@@ -201,7 +236,7 @@ eRetVal readSerialNumberValue(int32_t* pnSerialNo)
 
     Wire.requestFrom(g_nDeviceAddress, (uint8_t)6); // request 6 bytes from slave device
 
-    Serial.print("Raw serial number data: ");
+    debugPrint("Raw serial number data: ");
     while( Wire.available() ) // slave may send less than requested
     {
         ++nReceived;
@@ -213,9 +248,9 @@ eRetVal readSerialNumberValue(int32_t* pnSerialNo)
         /* print every byte as two hex digits with prefix '0x', NULL-terminate the string */
         sprintf(sHexBuf, "0x%02X ", cRxByte);
         sHexBuf[5] = 0;
-        Serial.print(sHexBuf);
+        debugPrint(sHexBuf);
     }
-    Serial.println();
+    debugPrintln("");
 
     if( 6 != nReceived )
     {
