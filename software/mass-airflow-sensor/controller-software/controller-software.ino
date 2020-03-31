@@ -13,7 +13,7 @@ uint8_t g_nDeviceAddress = 64;
 /* Mapping of the digital output pin for real-time supervision, define alias here */
 #define RT_SUPERVISION_PIN    (4)
 
-//#define DEBUG
+#define DEBUG
 #ifdef DEBUG
     #define debugPrint    Serial.print
     #define debugPrintln  Serial.println
@@ -39,7 +39,7 @@ uint8_t g_nDeviceAddress = 64;
 /* typedef return values of the sensor API */
 enum eRetVal { SENSOR_SUCCESS = 0, SENSOR_FAIL, SENSOR_CRC_ERROR };
 
-eRetVal readMeasurement(int16_t* pnVal/*TODO: , bool bSendCmd*/);
+eRetVal readMeasurement(float* pfFlow/*TODO: , bool bSendCmd*/);
 eRetVal readSerialNumber(int32_t* pnSerialNo);
 
 void setup()
@@ -72,24 +72,27 @@ void setup()
 
 void loop()
 {
-    static uint16_t nVal = 0;
+    //static uint16_t nVal = 0;
+    static float fFlow = 0.0f;
 
 #ifdef RT_SUPERVISION_PIN
     digitalWrite(RT_SUPERVISION_PIN, HIGH);
 #endif
 
-    if( SENSOR_SUCCESS == readMeasurement(&nVal) )
+    if( SENSOR_SUCCESS == readMeasurement(&fFlow) )
     {
         //debugPrint("Read measurement; raw (decimal): ");
         //debugPrintln( nVal );
         debugPrint("Measurement: ");
-        debugPrint( nVal >> 2 );
-        debugPrintln(" mmH2O");
+//        debugPrint( nVal );
+//        debugPrintln(" [mmH2O]");
+        debugPrint( fFlow );
+        debugPrintln(" [slm]");
         /* TODO/FIXME: measurement will change to volume flow, currently it's differential pressure */
     }
     else
     {
-        debugPrintln("Failed to read measurement");
+        //debugPrintln("Failed to read measurement");
     }
 
 #ifdef RT_SUPERVISION_PIN
@@ -108,13 +111,19 @@ crc_t calcCrc(const unsigned char *pData, size_t nDataLen)
     return nCrc;
 }
 
-eRetVal readMeasurement(int16_t* pnVal/*TODO: , bool bSendCmd*/)
+eRetVal readMeasurement(float* pfFlow/*TODO: , bool bSendCmd*/)
 {
+    static int16_t nVal;
+    
     if( SENSOR_SUCCESS != sendStartMeasurementCmd() )
     {
         return SENSOR_FAIL;
     }
-    else if( SENSOR_SUCCESS != readMeasurementValue(pnVal) )
+    else if( SENSOR_SUCCESS != readMeasurementValue(&nVal) )
+    {
+        return SENSOR_FAIL;
+    }
+    else if( SENSOR_SUCCESS != convertToFlow(&nVal, pfFlow) )
     {
         return SENSOR_FAIL;
     }
@@ -128,6 +137,20 @@ eRetVal sendStartMeasurementCmd(void)
     Wire.write(0x10);
     Wire.write(0x00);
     Wire.endTransmission(); // stop transmitting
+
+    return SENSOR_SUCCESS;
+}
+
+eRetVal convertToFlow(int16_t* pnVal, float* pfFlow)
+{
+    static const int16_t nOffsetFlow = 32000;
+    static const float fScaleFactor = 140.0f;
+
+    if( NULL == pnVal || NULL == pfFlow )
+    {
+        return SENSOR_FAIL;
+    }
+    *pfFlow = (float)(*pnVal - nOffsetFlow) / fScaleFactor;
 
     return SENSOR_SUCCESS;
 }
@@ -161,7 +184,7 @@ eRetVal readMeasurementValue(int16_t* pnVal)
 
     if( 3 != nReceived )
     {
-        debugPrintln("[ERROR] Did not receive 3 bytes.");
+        //debugPrintln("[ERROR] Did not receive 3 bytes.");
         *pnVal = 0xDEAD;
         return SENSOR_FAIL;
     }
