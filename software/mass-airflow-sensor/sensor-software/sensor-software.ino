@@ -92,7 +92,6 @@ void receiveEvent(int nBytes)
 
         /* print every byte as two hex digits with prefix '0x', NULL-terminate the string */
         sprintf(sHexBuf, "0x%02X ", cRxByte);
-        sHexBuf[5] = 0;
         Serial.print(sHexBuf);
     }
     Serial.println();
@@ -127,7 +126,6 @@ void receiveEvent(int nBytes)
     {
         Serial.println("Rx'ed unknown command: ");
         sprintf(sHexBuf, "0x%02X 0x%02X ", cCmdBytes[0], cCmdBytes[1]);
-        sHexBuf[10] = 0;
         Serial.print(sHexBuf);
         
         Serial.println("(ignored)");

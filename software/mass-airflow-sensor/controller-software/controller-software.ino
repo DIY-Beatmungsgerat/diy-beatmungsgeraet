@@ -86,7 +86,7 @@ eRetVal readMeasurementValue(int16_t* pnVal)
 {
     uint8_t nReceived = 0;
     uint16_t nVal = 0;
-    char sHexBuf[5]; /* string buffer for debug output via UART */
+    char sHexBuf[6]; /* string buffer for debug output via UART */
 
     Wire.requestFrom(g_nDeviceAddress, (uint8_t)3); // request 3 bytes from slave device
   
@@ -100,7 +100,6 @@ eRetVal readMeasurementValue(int16_t* pnVal)
 
         /* print every byte as two hex digits with prefix '0x', NULL-terminate the string */
         sprintf(sHexBuf, "0x%02X ", cRxByte);
-        sHexBuf[5] = 0;
         Serial.print(sHexBuf);
     }
     Serial.println();
@@ -143,7 +142,7 @@ eRetVal readSerialNumberValue(int32_t* pnSerialNo)
 {
     uint8_t nReceived = 0;
     uint32_t nSerialNo = 0;
-    char sHexBuf[5]; /* string buffer for debug output via UART */
+    char sHexBuf[6]; /* string buffer for debug output via UART */
 
     Wire.requestFrom(g_nDeviceAddress, (uint8_t)6); // request 6 bytes from slave device
 
@@ -158,7 +157,6 @@ eRetVal readSerialNumberValue(int32_t* pnSerialNo)
 
         /* print every byte as two hex digits with prefix '0x', NULL-terminate the string */
         sprintf(sHexBuf, "0x%02X ", cRxByte);
-        sHexBuf[5] = 0;
         Serial.print(sHexBuf);
     }
     Serial.println();
