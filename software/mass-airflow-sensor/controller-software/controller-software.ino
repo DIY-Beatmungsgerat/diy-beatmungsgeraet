@@ -13,6 +13,9 @@ uint8_t g_nDeviceAddress = 64;
 /* Mapping of the digital output pin for real-time supervision, define alias here */
 #define RT_SUPERVISION_PIN    (4)
 
+/* Define 'DEBUG' in order to get additional output via the serial console;
+ * undefine for speed-up and potential higher rates
+ */
 #define DEBUG
 #ifdef DEBUG
     #define debugPrint    Serial.print
@@ -29,7 +32,7 @@ uint8_t g_nDeviceAddress = 64;
   *      When it's not active, it will take approx. 0.8 ms per cycle also, so subtract 1 ms here.
  * Caution: The interrupt overhead is not subtracted automatically.
  */
-#define SENSOR_QUERY_INTERVAL (20u)
+#define SENSOR_QUERY_INTERVAL (10u)
 #ifdef DEBUG
     #define SENSOR_LOOP_DELAY (SENSOR_QUERY_INTERVAL - (1u))
 #else
@@ -37,9 +40,9 @@ uint8_t g_nDeviceAddress = 64;
 #endif
 
 /* typedef return values of the sensor API */
-enum eRetVal { SENSOR_SUCCESS = 0, SENSOR_FAIL, SENSOR_CRC_ERROR };
+enum eRetVal { SENSOR_SUCCESS = 0, SENSOR_FAIL, SENSOR_CRC_ERROR, SENSOR_CMD_ERROR, SENSOR_RXCNT_ERROR, SENSOR_PARAM_ERROR };
 
-eRetVal readMeasurement(float* pfFlow/*TODO: , bool bSendCmd*/);
+eRetVal readMeasurement(float* pfFlow, int16_t* pnRaw, bool bSendMeasCmd);
 eRetVal readSerialNumber(int32_t* pnSerialNo);
 
 void setup()
@@ -72,27 +75,46 @@ void setup()
 
 void loop()
 {
-    //static uint16_t nVal = 0;
+    static bool bSendMeasCommand = true;
     static float fFlow = 0.0f;
+    static eRetVal eStatus = SENSOR_FAIL;
+#ifdef DEBUG
+    static uint16_t nRaw = 0;
+#endif
 
 #ifdef RT_SUPERVISION_PIN
     digitalWrite(RT_SUPERVISION_PIN, HIGH);
 #endif
 
-    if( SENSOR_SUCCESS == readMeasurement(&fFlow) )
+#ifdef DEBUG
+    eStatus = readMeasurement(&fFlow, &nRaw, bSendMeasCommand);
+#else
+    eStatus = readMeasurement(&fFlow, NULL, bSendMeasCommand);
+#endif
+
+    switch( eStatus )
     {
-        //debugPrint("Read measurement; raw (decimal): ");
-        //debugPrintln( nVal );
-        debugPrint("Measurement: ");
-//        debugPrint( nVal );
-//        debugPrintln(" [mmH2O]");
-        debugPrint( fFlow );
-        debugPrintln(" [slm]");
-        /* TODO/FIXME: measurement will change to volume flow, currently it's differential pressure */
-    }
-    else
-    {
-        //debugPrintln("Failed to read measurement");
+        case SENSOR_SUCCESS:
+            /*
+            debugPrint("Raw: ");
+            debugPrint( nRaw );
+            debugPrint(", ");
+            */
+            debugPrint("Flow: ");
+            debugPrint( fFlow );
+            debugPrintln(" [slm]");
+    
+            bSendMeasCommand = false; /* do not resend measurement command after first success */
+            break;
+        case SENSOR_RXCNT_ERROR:
+            debugPrintln("[ERROR] Receive count error.");
+            break;
+        case SENSOR_CRC_ERROR:
+            debugPrintln("[ERROR] CRC error.");
+            break;
+        default:
+            debugPrintln("[ERROR] Measurement error.");
+            break;
     }
 
 #ifdef RT_SUPERVISION_PIN
@@ -111,24 +133,30 @@ crc_t calcCrc(const unsigned char *pData, size_t nDataLen)
     return nCrc;
 }
 
-eRetVal readMeasurement(float* pfFlow/*TODO: , bool bSendCmd*/)
+eRetVal readMeasurement(float* pfFlow, uint16_t* pnRaw, bool bSendMeasCmd)
 {
-    static int16_t nVal;
-    
-    if( SENSOR_SUCCESS != sendStartMeasurementCmd() )
+    static eRetVal eStatus;
+    static uint16_t nVal;
+
+    if( bSendMeasCmd )
     {
-        return SENSOR_FAIL;
-    }
-    else if( SENSOR_SUCCESS != readMeasurementValue(&nVal) )
-    {
-        return SENSOR_FAIL;
-    }
-    else if( SENSOR_SUCCESS != convertToFlow(&nVal, pfFlow) )
-    {
-        return SENSOR_FAIL;
+        if( SENSOR_SUCCESS != sendStartMeasurementCmd() )
+        {
+            return SENSOR_CMD_ERROR;
+        }
     }
 
-    return SENSOR_SUCCESS;
+    eStatus = readMeasurementValue(&nVal);
+    if( eStatus == SENSOR_SUCCESS )
+    {
+        if( NULL != pnRaw )
+        {
+            *pnRaw = nVal;
+        }
+        convertToFlow(&nVal, pfFlow);
+    }
+
+    return eStatus;
 }
 
 eRetVal sendStartMeasurementCmd(void)
@@ -141,30 +169,29 @@ eRetVal sendStartMeasurementCmd(void)
     return SENSOR_SUCCESS;
 }
 
-eRetVal convertToFlow(int16_t* pnVal, float* pfFlow)
+eRetVal convertToFlow(uint16_t* pnVal, float* pfFlow)
 {
-    static const int16_t nOffsetFlow = 32000;
+    static const uint16_t fOffsetFlow = 32000.0f;
     static const float fScaleFactor = 140.0f;
 
     if( NULL == pnVal || NULL == pfFlow )
     {
-        return SENSOR_FAIL;
+        return SENSOR_PARAM_ERROR;
     }
-    *pfFlow = (float)(*pnVal - nOffsetFlow) / fScaleFactor;
+    *pfFlow = ((float)(*pnVal) - fOffsetFlow) / fScaleFactor;
 
     return SENSOR_SUCCESS;
 }
 
 eRetVal readMeasurementValue(int16_t* pnVal)
 {
+    static char sHexBuf[12]; /* string buffer for debug output via UART */
+    static uint8_t nMeasRx[3];
     uint8_t nReceived = 0;
     int16_t nVal = 0;
-    char sHexBuf[12]; /* string buffer for debug output via UART */
-    uint8_t nMeasRx[3];
 
     Wire.requestFrom(g_nDeviceAddress, (uint8_t)3); // request 3 bytes from slave device
   
-//    debugPrint("Raw measurement data: ");
     while( Wire.available() ) // slave may send less than requested
     {
         uint8_t cRxByte = Wire.read(); // receive a byte as character
@@ -174,54 +201,28 @@ eRetVal readMeasurementValue(int16_t* pnVal)
             nMeasRx[nReceived] = cRxByte;
         }
         ++nReceived;
-
-//        /* print every byte as two hex digits with prefix '0x', NULL-terminate the string */
-//        sprintf(sHexBuf, "0x%02X ", cRxByte);
-//        sHexBuf[5] = 0;
-//        debugPrint(sHexBuf);
     }
-//    debugPrintln("");
 
     if( 3 != nReceived )
     {
-        //debugPrintln("[ERROR] Did not receive 3 bytes.");
         *pnVal = 0xDEAD;
-        return SENSOR_FAIL;
+        debugPrint("[ERROR] Received ");
+        debugPrint( nReceived );
+        debugPrintln(" instead of 3 bytes.");
+        return SENSOR_RXCNT_ERROR;
     }
 
     // calculate CRC here and check with received CRC
     crc_t cCalculatedCrc = calcCrc(&nMeasRx[0], 2);
-
-//    debugPrint("Calculated CRC: ");
-//    sprintf(sHexBuf, "0x%02X ", (uint8_t)cCalculatedCrc);
-//    sHexBuf[4] = 0;
-//    debugPrint(sHexBuf);
-//
-//    debugPrint(", received CRC: ");
-//    sprintf(sHexBuf, "0x%02X ", (uint8_t)nMeasRx[2]);
-//    sHexBuf[4] = 0;
-//    debugPrint(sHexBuf);
-//    debugPrintln("");
 
     if( nMeasRx[2] != (uint8_t)cCalculatedCrc )
     {
         debugPrintln("[ERROR] CRC does not match.");
         return SENSOR_CRC_ERROR;
     }
-//    else
-//    {
-//        debugPrintln("[DEBUG] CRC check OK.");
-//    }
 
     // convert to int16_t and prepare as return value
-    nVal = ((int16_t)nMeasRx[0] << 8) | (int16_t)nMeasRx[1];
-    
-//    debugPrint("16 bit sensor reading: ");
-//    debugPrintln(nVal);
-
-//    sprintf(sHexBuf, "0x%02X 0x%02X ", nMeasRx[0], nMeasRx[1]);
-//    sHexBuf[11] = 0;
-//    debugPrintln(sHexBuf);
+    nVal = ((uint16_t)nMeasRx[0] << 8) | (uint16_t)nMeasRx[1];
 
     *pnVal = nVal;
     return SENSOR_SUCCESS;
@@ -231,7 +232,7 @@ eRetVal readSerialNumber(int32_t* pnSerialNo)
 {
     if( SENSOR_SUCCESS != sendReadSerialNumberCmd() )
     {
-        return SENSOR_FAIL; 
+        return SENSOR_CMD_ERROR; 
     }
     if( SENSOR_SUCCESS != readSerialNumberValue(pnSerialNo) )
     {
