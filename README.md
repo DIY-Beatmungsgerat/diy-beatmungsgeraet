@@ -22,6 +22,9 @@ Wir arbeiten an verschiedensten Themen. Zum einen etwa an der Weiterentwicklung 
 * [/ software / mass-airflow-sensor / sensor-software/](/software/mass-airflow-sensor/sensor-software/): die Software, die auf dem Sensor selbst läuft, der Luftmassesensor-Daten bereitstellt (Mock-Up)
 * [/ software / ventilator-control/](/software/ventilator-control/): die Software für die Steuerungs-Plattform des Beatmungsgerätes
 
+# Software Status
+
+ventilator-control ![PlatformIO CI](https://github.com/wirthual/diy-beatmungsgeraet/workflows/PlatformIO%20CI/badge.svg)
 
 # Weiterführende Links
 * [Homepage des WirvsVirus Hackathon](https://wirvsvirushackathon.org/)
