@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html>
+    <head>
+       <title>Page Title</title>
+       <meta name="viewport" content="initial-scale=1, user-scalable=no, width=device-width">
+		<link rel="stylesheet" href="https://ajax.googleapis.com/ajax/libs/jquerymobile/1.4.5/jquery.mobile.min.css">
+
+     <style>
+  p {
+    color: blue;
+    margin: 8px;
+  }
+  </style>
+  
+       <style>
+  p2 {
+    color: blue;
+    margin: 8px;
+  }
+  </style>
+  
+    </head>
+ 
+    <body>
+	
+	        <div data-role="page" id="connection" data-theme="a">
+			<div data-role="header" data-position="fixed">
+              <input type="text" name="input_connection_ESP" id="input_connection_ESP" value="Suche ESP">
+            </div>
+
+		</div>
+	
+		<script src="http://code.jquery.com/jquery-1.11.1.min.js"></script>
+	    <script src="http://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.js"></script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/flot/0.8.3/excanvas.min.js></script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/flot/0.8.3/jquery.flot.canvas.min.js"></script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/flot/0.8.3/jquery.flot.min.js"></script>
+	
+	 <script>              
+
+				var cur_direction = 0;
+				var messages_ESP = "";
+				var show_measurements = 0;
+				var cur_cycle_no = 0;
+				var pressure_data = [];
+			    var step_data = [];
+				var ventilator_data_plot;
+                var x_axis_counter = 0;
+				var steps_to_go_cur_run = 0;
+
+
+				var url_websocket_motor = "ws://192.168.1.232:8081/";  //der Slash am Ende ist wichtig sonst funktioniert der Vergleich nicht.  
+
+				const socketOpenListener = (event) => {
+					console.log("ESP verbunden");
+//					ventilator_data_plot = $.plot("#chart_auswertung", [pressure_data, step_data], {xaxis:{min:0, max:15},yaxis:{min:0, max: 200}});				  
+					$.mobile.changePage( "#first", { transition: "slideup", changeHash: false });
+				};
+				
+				const socketCloseListener = (event) => {
+				  console.log("Geschlossen wurde");
+				 
+				};
+				
+				const socketMessageListener = (event) => {
+					if (show_measurements == 1)
+					{
+						messages_ESP = event.data + "\\\n" + messages_ESP;
+						document.getElementById("messages_ESP").value = messages_ESP;
+				
+						values_from_ESP = event.data.split(";");
+						cur_time = parseInt(values_from_ESP[0],10);
+						cur_step_position = parseInt(values_from_ESP[1],10) / steps_to_go_cur_run*20;
+						cur_pressure = (parseInt(values_from_ESP[2],10)/1000)-1004;
+						if (Math.abs(cur_pressure) < 80)
+						{	
+							pressure_data.push([cur_time,cur_pressure]);	
+							step_data.push([cur_time,cur_step_position]);	
+						}	
+					}
+
+				};
+				  
+				url_websocket_motor = new WebSocket(url_websocket_motor);
+				url_websocket_motor.addEventListener('open', socketOpenListener);
+				url_websocket_motor.addEventListener('close', socketCloseListener);
+				url_websocket_motor.addEventListener('message', socketMessageListener);
+
+
+       
+              $(document).on("click", "#button_start_cw", function()
+			  {					
+			  	turn_motor(0);
+              });
+			  
+			  $(document).on("click", "#button_start_ccw", function()
+			  {
+			  	turn_motor(1);
+              });
+			  
+
+			  $(document).on("click", "#button_reset_time_step_counter_ESP", function()
+			  {
+				cur_direction = 0;
+				step_data = [];
+				pressure_data = [];
+				url_websocket_motor.send("R",0);
+              });
+			  
+			  $(document).on("click", "#button_go_to_diagramm_site", function()
+			  {					
+			    //ventilator_data_plot.setData([pressure_data, step_data]);
+				ventilator_data_plot = $.plot("#chart_auswertung", [pressure_data, step_data], {xaxis:{min:0, max:5000},yaxis:{min:-25, max: 25}});				  
+				$.mobile.changePage( "#second", { transition: "slideup", changeHash: false });
+
+              });
+			  
+			   $(document).on("click", "#button_go_to_control_site", function()
+			  {
+				$.mobile.changePage( "#first", { transition: "slideup", changeHash: false });
+              })
+			  
+			  $(document).on("click", "#button_toggle_show_measurements", function()
+			  {
+				if (show_measurements == 0) 
+				{
+					show_measurements = 1;
+					messages_ESP=0;
+					document.getElementById("messages_ESP").value = messages_ESP;
+				    url_websocket_motor.send("M",0);
+
+				}else
+				{
+					show_measurements = 0;
+					url_websocket_motor.send("O",0);
+				}
+				console.log("Anzeige der Messwerte ein/ausgeschaltet")
+              });
+
+			  function turn_motor(direction )
+			  {
+				var motor_speed_phases = "";
+				
+				for (i=1;i<=10;i++)
+				{
+					cur_motor_speed_phases_at_what_step_speed_changes = parseInt(document.getElementById("text_motor_speed_phases_at_what_step_speed_changes_"+i).value, 10);
+					cur_motor_speed_phases_at_what_step_which_speed = parseInt(document.getElementById("text_motor_speed_phases_at_what_step_which_speed_"+i).value, 10);
+
+					if (cur_motor_speed_phases_at_what_step_speed_changes >= 0) //valider Datenpunkt (>= weil null auch in der ersten Spalte steht)
+					{
+						motor_speed_phases = motor_speed_phases + cur_motor_speed_phases_at_what_step_speed_changes + ";" +
+																  cur_motor_speed_phases_at_what_step_which_speed + ";";
+					}else
+					{
+						console.log(i);
+						steps_to_go_cur_run = parseInt(document.getElementById("text_motor_speed_phases_at_what_step_speed_changes_"+(i-1)).value, 10); 
+						break;
+					}
+						 
+				}
+				if (steps_to_go_cur_run == 0) {steps_to_go_cur_run = parseInt(document.getElementById("text_motor_speed_phases_at_what_step_speed_changes_"+"10").value, 10);}
+
+				run_string_to_ESP = "D;" + direction + ";" + steps_to_go_cur_run + ";" + motor_speed_phases;
+				 
+			    console.log("Motor String wurde gesendet: " + run_string_to_ESP);
+				url_websocket_motor.send(run_string_to_ESP,0);
+			  }
+			  
+			  $(document).on("click", "#button_start_cycles", function()
+			  {
+				cur_direction = 0;
+				cur_cycle_no = 0;
+				x_axis_counter = 0;
+				step_data = [];
+				pressure_data = [];
+				show_measurements = 1;
+				messages_ESP=0;
+				url_websocket_motor.send("M",0);
+				url_websocket_motor.send("R",0);
+				setTimeout(motor_loopFunc, 500);
+				
+              });
+			  
+			  function motor_loopFunc() 
+			  {
+				  turn_motor(cur_direction);
+				  cur_cycle_no = cur_cycle_no + 0.5; 
+				  if (cur_cycle_no < document.getElementById("text_no_cycles").value)
+				  {
+					  if (cur_direction == 0) {cur_direction = 1;} else {cur_direction = 0;}
+					  setTimeout(motor_loopFunc, document.getElementById("text_delay_motor_loop").value); 
+				  }else
+				  {
+				     show_measurements = 0;
+				  }
+			  }
+
+                      
+              
+              </script>
+
+
+
+        <div data-role="page" id="first" data-theme="a">
+            <div data-role="header" data-position="fixed">
+              <center>
+              <input type = "button" id="button_start_cw"  data-inline="true" value="Vorwaertsfahrt starten"/>
+              <input type = "button" id="button_start_ccw" data-inline="true" value="Rueckwaertsfahrt starten"/>				                                               
+              <input type = "button" id="button_start_cycles" data-inline="true" value="Zyklenfahrt starten"/>
+              <input type = "button" id="button_toggle_show_measurements" data-inline="true" value="Messwerte einschalten / ausschalten"/>		
+			  <input type = "button" id="button_reset_time_step_counter_ESP" data-inline="true" value="Zeit- und gefahrene Schritte nullen"/>     
+			  <input type = "button" id="button_go_to_diagramm_site" data-inline="true" value="Diagramm darstellen"/>     
+			
+
+            </div><!-- /header -->
+ 
+            <div data-role="content">
+			<h3>Definition Fahrprofil</h3>
+			<table>
+			<thead>
+				<tr><td></td><td>ab diesem Schritt...</td><td>gilt folgender Motortakt [us]</td></tr>
+			</thead>
+			<tbody>
+				<tr><td>1. Schritt</td>
+						<td><input type = "text" id="text_motor_speed_phases_at_what_step_speed_changes_1" data-inline="true" value="0"/></td>
+						<td><input type = "text" id="text_motor_speed_phases_at_what_step_which_speed_1" data-inline="true" value="600"/></td></tr>
+				<tr><td>2. Schritt</td>
+						<td><input type = "text" id="text_motor_speed_phases_at_what_step_speed_changes_2" data-inline="true" value="20"/></td>
+						<td><input type = "text" id="text_motor_speed_phases_at_what_step_which_speed_2" data-inline="true" value="500"/></td></tr>
+				<tr><td>3. Schritt</td>
+						<td><input type = "text" id="text_motor_speed_phases_at_what_step_speed_changes_3" data-inline="true" value="30"/></td>
+						<td><input type = "text" id="text_motor_speed_phases_at_what_step_which_speed_3" data-inline="true" value="400"/></td></tr>
+				<tr><td>4. Schritt</td>
+						<td><input type = "text" id="text_motor_speed_phases_at_what_step_speed_changes_4" data-inline="true" value="50"/></td>
+						<td><input type = "text" id="text_motor_speed_phases_at_what_step_which_speed_4" data-inline="true" value="300"/></td></tr>
+				<tr><td>5. Schritt</td>
+						<td><input type = "text" id="text_motor_speed_phases_at_what_step_speed_changes_5" data-inline="true" value="80"/></td>
+						<td><input type = "text" id="text_motor_speed_phases_at_what_step_which_speed_5" data-inline="true" value="250"/></td></tr>
+				<tr><td>6. Schritt</td>
+						<td><input type = "text" id="text_motor_speed_phases_at_what_step_speed_changes_6" data-inline="true" value="120"/></td>
+						<td><input type = "text" id="text_motor_speed_phases_at_what_step_which_speed_6" data-inline="true" value="200"/></td></tr>
+				<tr><td>7. Schritt</td>
+						<td><input type = "text" id="text_motor_speed_phases_at_what_step_speed_changes_7" data-inline="true" value="150"/></td>
+						<td><input type = "text" id="text_motor_speed_phases_at_what_step_which_speed_7" data-inline="true" value="160"/></td></tr>
+				<tr><td>8. Schritt</td>
+						<td><input type = "text" id="text_motor_speed_phases_at_what_step_speed_changes_8" data-inline="true" value="2000"/></td>
+						<td><input type = "text" id="text_motor_speed_phases_at_what_step_which_speed_8" data-inline="true" value="-1"/></td></tr>
+				<tr><td>9. Schritt</td>
+						<td><input type = "text" id="text_motor_speed_phases_at_what_step_speed_changes_9" data-inline="true" value="-1"/></td>
+						<td><input type = "text" id="text_motor_speed_phases_at_what_step_which_speed_9" data-inline="true" value="-1"/></td></tr>
+				<tr><td>10. Schritt</td>
+						<td><input type = "text" id="text_motor_speed_phases_at_what_step_speed_changes_10" data-inline="true" value="-1"/></td>
+						<td><input type = "text" id="text_motor_speed_phases_at_what_step_which_speed_10" data-inline="true" value="-1"/></td></tr>
+			</tbody>
+			</table>
+					
+			<table>			
+				<tr><td>Falls Zyklenfahrt: Anzahl Zyklen </td><td><input type = "text" id="text_no_cycles" data-inline="true" value="2"/></td></tr>
+				<tr><td>Falls Zyklenfahrt: Wartezeit [ms] </td><td><input type = "text" id="text_delay_motor_loop" data-inline="true" value="2000"/></td></tr>
+			</table>
+			
+			<h3>Nachrichten vom ESP</h3>
+
+			<textarea id="messages_ESP" rows="15" cols="60"></textarea>		
+            </div><!-- /content -->
+ 
+        </div><!-- /page -->
+ 
+        <div data-role="page" id="second" data-theme="a">
+            <div data-role="header" data-position="fixed">
+			<center>
+		    <input type = "button" id="button_go_to_control_site" data-inline="true" value="Zurueck"/>     
+            </div><!-- /header -->
+ 
+            <div data-role="content">
+                <div id="chart_auswertung" style="width: 1200px; height: 500px;"></div>
+            </div><!-- /content -->
+ 
+        </div><!-- /page -->
+ 
+<section id="content"></section>
+<input id="message" type="text"/>
+
+    </body>
+</html>
