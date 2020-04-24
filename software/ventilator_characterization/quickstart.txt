@@ -1,0 +1,10 @@
+Liebe Anwender,
+
+anbei ein Guide, wie man die Software ans Laufen bekommt:
+
+- Die erste Datei ist eine HTML Datei in der steht in Zeile 52: ws://192.168.1.232:8081/ -> da muss die IP-Adresse von deinem ESP reingeschrieben werden.
+- Das andere ist die Firmware für den ESP. Dazu müssen die Bibliotheken, die in Zeile 1 bis 10 stehen, heruntergeladen werden. Dazu gibt es viele Anleitungen im Internet. 
+- Irgendwann kommt dann in dem Eingabefenster "connect....". Dann musst du auf den rechten Knopf vom ESP drücken (wenn man auf die Mikro-USB Dose von vorne schaut).
+- Dann musst du das Arduino nochmal neu starten
+- Und dann taucht unter Werkzeuge Port der Ardunio auf. Da steht eine IP-Adrese dabei, die trägst du in die HTML Datei in Zeile 52 ein.
+- Jetzt sollte alles funktionieren 
