@@ -1,3 +1,5 @@
+#Disclaimer "This is not a medical device and it must not be used in a clinical environment."
+
 #include <ESP8266WiFi.h>
 #include <BlynkSimpleEsp8266.h>
 #include <Wire.h>
